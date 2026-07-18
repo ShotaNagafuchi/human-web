@@ -1,0 +1,134 @@
+{
+  "name": "wave",
+  "loop": false,
+  "duration": 1.2,
+  "_comment": "Shoulder + UpperArm together to ~30° to raise hand",
+  "keyframes": {
+    "0": {
+      "_comment": "Standing",
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    },
+    "20": {
+      "_comment": "Arm raising",
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.52
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.52
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    },
+    "40": {
+      "_comment": "Arm up, wave right",
+      "Shoulder_R": {
+        "x": 0,
+        "y": -0.2,
+        "z": -0.52
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.52
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    },
+    "55": {
+      "_comment": "Wave left",
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0.2,
+        "z": -0.52
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.52
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    },
+    "70": {
+      "_comment": "Wave right again",
+      "Shoulder_R": {
+        "x": 0,
+        "y": -0.2,
+        "z": -0.52
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.52
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    },
+    "85": {
+      "_comment": "Arm lowering",
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.3
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -0.3
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    },
+    "100": {
+      "_comment": "Back to rest",
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      },
+      "UpperArm_L": {
+        "x": 0,
+        "y": 0,
+        "z": -1.047
+      }
+    }
+  }
+}

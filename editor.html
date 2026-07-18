@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bone Animation Editor — Human-Web</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 3D viewport */
+    #viewport {
+      flex: 1;
+      position: relative;
+    }
+    #viewport canvas { display: block; }
+
+    /* Side panel */
+    #panel {
+      width: 340px;
+      background: #16213e;
+      overflow-y: auto;
+      border-left: 1px solid #333;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #panel h1 {
+      font-size: 1rem;
+      padding: 12px 16px;
+      background: #0f3460;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: #1a1a3e;
+      position: sticky;
+      top: 40px;
+      z-index: 10;
+    }
+    .tabs button {
+      flex: 1;
+      padding: 8px;
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.8rem;
+      border-bottom: 2px solid transparent;
+    }
+    .tabs button.active {
+      color: #4fc3f7;
+      border-bottom-color: #4fc3f7;
+    }
+
+    .tab-content { display: none; padding: 8px 0; }
+    .tab-content.active { display: block; }
+
+    /* Bone controls */
+    .bone-group {
+      padding: 6px 16px;
+      border-bottom: 1px solid #222;
+    }
+    .bone-group summary {
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4fc3f7;
+      padding: 4px 0;
+      user-select: none;
+    }
+    .bone-group[open] summary { color: #81d4fa; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+    }
+    .slider-row label {
+      width: 16px;
+      font-size: 0.75rem;
+      color: #999;
+      font-weight: 600;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      height: 4px;
+      accent-color: #4fc3f7;
+    }
+    .slider-row .value {
+      width: 45px;
+      font-size: 0.7rem;
+      color: #aaa;
+      text-align: right;
+      font-family: monospace;
+    }
+
+    /* Timeline */
+    #timeline {
+      padding: 12px 16px;
+    }
+    #timeline h3 {
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      color: #4fc3f7;
+    }
+    .keyframe-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .keyframe-row button {
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      background: #0f3460;
+      border: 1px solid #4fc3f7;
+      color: #4fc3f7;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .keyframe-row button:hover { background: #1a4a7a; }
+    .keyframe-row button.active { background: #4fc3f7; color: #000; }
+
+    /* Playback */
+    #playback {
+      padding: 12px 16px;
+      background: #0f3460;
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #playback button {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      background: #4fc3f7;
+      color: #000;
+      font-weight: 600;
+    }
+    #playback button:hover { background: #81d4fa; }
+    #playback button.secondary {
+      background: #333;
+      color: #ccc;
+    }
+    #playback .phase-display {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #4fc3f7;
+      margin-left: auto;
+    }
+
+    /* Export */
+    #export-area {
+      padding: 12px 16px;
+    }
+    #export-area textarea {
+      width: 100%;
+      height: 120px;
+      background: #111;
+      color: #4fc3f7;
+      border: 1px solid #333;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.7rem;
+      padding: 8px;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport"></div>
+
+  <div id="panel">
+    <h1>Bone Editor</h1>
+
+    <div class="tabs">
+      <button class="active" data-tab="pose">Pose</button>
+      <button data-tab="keyframes">Keyframes</button>
+      <button data-tab="export">Export</button>
+    </div>
+
+    <!-- Pose Tab -->
+    <div id="tab-pose" class="tab-content active">
+      <div id="bone-controls"></div>
+    </div>
+
+    <!-- Keyframes Tab -->
+    <div id="tab-keyframes" class="tab-content">
+      <div id="timeline">
+        <h3>Animation Presets</h3>
+        <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;">
+          <button onclick="loadPreset('walk')" style="padding:5px 10px;background:#0f3460;border:1px solid #4fc3f7;color:#4fc3f7;border-radius:4px;cursor:pointer;font-size:0.75rem;">Walk</button>
+          <button onclick="loadPreset('jump')" style="padding:5px 10px;background:#0f3460;border:1px solid #4fc3f7;color:#4fc3f7;border-radius:4px;cursor:pointer;font-size:0.75rem;">Jump</button>
+          <button onclick="loadPreset('run')" style="padding:5px 10px;background:#0f3460;border:1px solid #4fc3f7;color:#4fc3f7;border-radius:4px;cursor:pointer;font-size:0.75rem;">Run</button>
+          <button onclick="loadPreset('idle')" style="padding:5px 10px;background:#0f3460;border:1px solid #4fc3f7;color:#4fc3f7;border-radius:4px;cursor:pointer;font-size:0.75rem;">Idle</button>
+          <button onclick="loadPreset('sit')" style="padding:5px 10px;background:#0f3460;border:1px solid #4fc3f7;color:#4fc3f7;border-radius:4px;cursor:pointer;font-size:0.75rem;">Sit</button>
+        </div>
+        <p id="preset-label" style="font-size:0.75rem;color:#888;margin-bottom:8px;">
+          Select a preset or set poses at different phases manually
+        </p>
+        <div id="keyframe-buttons"></div>
+        <div style="margin-top:12px;">
+          <label style="font-size:0.75rem;color:#999;">Phase:</label>
+          <input type="range" id="phase-slider" min="0" max="100" value="0" style="width:100%;accent-color:#4fc3f7;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Tab -->
+    <div id="tab-export" class="tab-content">
+      <div id="export-area">
+        <h3 style="font-size:0.85rem;color:#4fc3f7;margin-bottom:8px;">Animation Data (JSON)</h3>
+        <textarea id="export-json" readonly></textarea>
+        <button onclick="copyExport()" style="margin-top:8px;padding:6px 14px;background:#4fc3f7;color:#000;border:none;border-radius:4px;cursor:pointer;">Copy</button>
+      </div>
+    </div>
+
+    <div id="playback">
+      <button onclick="togglePlay()">Play</button>
+      <button class="secondary" onclick="resetPose()">Reset</button>
+      <span class="phase-display" id="phase-display">0%</span>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    // ─── Scene setup ───
+    const viewport = document.getElementById('viewport');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    viewport.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+
+    const camera = new THREE.PerspectiveCamera(40, viewport.clientWidth / viewport.clientHeight, 0.01, 50);
+    camera.position.set(0, 1.0, 3.0);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.6, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 1.0);
+    key.position.set(2, 3, 2);
+    scene.add(key);
+    scene.add(new THREE.DirectionalLight(0x8899bb, 0.4).translateX(-2).translateY(1));
+
+    // Grid
+    scene.add(new THREE.GridHelper(4, 20, 0x333355, 0x222244));
+
+    // ─── Load model ───
+    const loader = new GLTFLoader();
+    let bones = {};
+    let restPose = {};
+    let skeletonHelper;
+
+    // Bones to expose in the editor (skip finger bones etc)
+    const EDIT_BONES = [
+      'Hips', 'Spine', 'Chest', 'Neck', 'Head',
+      'Shoulder_L', 'UpperArm_L', 'LowerArm_L',
+      'Shoulder_R', 'UpperArm_R', 'Hand_R',
+      'UpperLeg_L', 'LowerLeg_L',
+      'UpperLeg_R', 'LowerLeg_R',
+    ];
+
+    loader.load('/meccha.glb', (gltf) => {
+      const model = gltf.scene;
+      scene.add(model);
+
+      // White material
+      const mat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.45, metalness: 0.05 });
+      model.traverse((child) => {
+        if (child.isMesh) child.material = mat;
+        if (child.isBone) {
+          bones[child.name] = child;
+          restPose[child.name] = child.quaternion.clone();
+        }
+      });
+
+      // Skeleton visualization
+      const skinned = [];
+      model.traverse(c => { if (c.isSkinnedMesh) skinned.push(c); });
+      if (skinned.length > 0) {
+        skeletonHelper = new THREE.SkeletonHelper(skinned[0]);
+        skeletonHelper.material.linewidth = 2;
+        scene.add(skeletonHelper);
+      }
+
+      buildControls();
+      buildKeyframeButtons();
+    });
+
+    // ─── Bone controls UI ───
+    const boneValues = {}; // { boneName: { x, y, z } }
+
+    function buildControls() {
+      const container = document.getElementById('bone-controls');
+      container.innerHTML = '';
+
+      for (const name of EDIT_BONES) {
+        if (!bones[name]) continue;
+
+        boneValues[name] = { x: 0, y: 0, z: 0 };
+
+        const details = document.createElement('details');
+        details.className = 'bone-group';
+        details.innerHTML = `<summary>${name}</summary>`;
+
+        for (const axis of ['x', 'y', 'z']) {
+          const row = document.createElement('div');
+          row.className = 'slider-row';
+
+          const label = document.createElement('label');
+          label.textContent = axis.toUpperCase();
+          label.style.color = axis === 'x' ? '#f44' : axis === 'y' ? '#4f4' : '#48f';
+
+          const slider = document.createElement('input');
+          slider.type = 'range';
+          slider.min = '-180';
+          slider.max = '180';
+          slider.value = '0';
+          slider.step = '1';
+
+          const val = document.createElement('span');
+          val.className = 'value';
+          val.textContent = '0°';
+
+          slider.addEventListener('input', () => {
+            const deg = parseFloat(slider.value);
+            val.textContent = deg + '°';
+            boneValues[name][axis] = deg * Math.PI / 180;
+            applyBoneRotation(name);
+          });
+
+          row.appendChild(label);
+          row.appendChild(slider);
+          row.appendChild(val);
+          details.appendChild(row);
+
+          // Store ref for programmatic updates
+          slider._boneAxis = { name, axis, valSpan: val };
+        }
+
+        container.appendChild(details);
+      }
+    }
+
+    function applyBoneRotation(name) {
+      const bone = bones[name];
+      const rest = restPose[name];
+      const v = boneValues[name];
+      if (!bone || !rest) return;
+
+      const euler = new THREE.Euler(v.x, v.y, v.z, 'ZYX');
+      const q = new THREE.Quaternion().setFromEuler(euler);
+      bone.quaternion.copy(rest).multiply(q);
+    }
+
+    function applyAllBoneRotations() {
+      for (const name of Object.keys(boneValues)) {
+        applyBoneRotation(name);
+      }
+    }
+
+    // ─── Keyframes ───
+    const keyframes = {}; // { phase: { boneName: {x,y,z} } }
+    let currentPhase = 0;
+    const PHASES = [0, 25, 50, 75, 100];
+
+    function buildKeyframeButtons() {
+      const container = document.getElementById('keyframe-buttons');
+      container.innerHTML = '';
+
+      for (const phase of PHASES) {
+        const row = document.createElement('div');
+        row.className = 'keyframe-row';
+
+        const btn = document.createElement('button');
+        btn.textContent = `${phase}%`;
+        btn.addEventListener('click', () => {
+          currentPhase = phase;
+          document.getElementById('phase-slider').value = phase;
+          document.getElementById('phase-display').textContent = phase + '%';
+          if (keyframes[phase]) {
+            loadPose(keyframes[phase]);
+          }
+        });
+
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = 'Save Pose';
+        saveBtn.addEventListener('click', () => {
+          savePoseAtPhase(phase);
+          saveBtn.textContent = 'Saved!';
+          setTimeout(() => { saveBtn.textContent = 'Save Pose'; }, 1000);
+        });
+
+        const indicator = document.createElement('span');
+        indicator.style.cssText = 'font-size:0.7rem;color:#666;';
+        indicator.id = `kf-indicator-${phase}`;
+        indicator.textContent = keyframes[phase] ? '(has pose)' : '(empty)';
+
+        row.appendChild(btn);
+        row.appendChild(saveBtn);
+        row.appendChild(indicator);
+        container.appendChild(row);
+      }
+    }
+
+    function savePoseAtPhase(phase) {
+      keyframes[phase] = {};
+      for (const [name, v] of Object.entries(boneValues)) {
+        keyframes[phase][name] = { x: v.x, y: v.y, z: v.z };
+      }
+      const ind = document.getElementById(`kf-indicator-${phase}`);
+      if (ind) ind.textContent = '(has pose)';
+      updateExport();
+    }
+
+    function loadPose(pose) {
+      for (const [name, v] of Object.entries(pose)) {
+        if (boneValues[name]) {
+          boneValues[name].x = v.x;
+          boneValues[name].y = v.y;
+          boneValues[name].z = v.z;
+        }
+      }
+      applyAllBoneRotations();
+      updateSliders();
+    }
+
+    function updateSliders() {
+      const sliders = document.querySelectorAll('input[type="range"]');
+      for (const slider of sliders) {
+        if (!slider._boneAxis) continue;
+        const { name, axis, valSpan } = slider._boneAxis;
+        if (boneValues[name]) {
+          const deg = Math.round(boneValues[name][axis] * 180 / Math.PI);
+          slider.value = deg;
+          valSpan.textContent = deg + '°';
+        }
+      }
+    }
+
+    // ─── Phase slider ───
+    document.getElementById('phase-slider').addEventListener('input', (e) => {
+      const phase = parseFloat(e.target.value);
+      currentPhase = phase;
+      document.getElementById('phase-display').textContent = Math.round(phase) + '%';
+      interpolatePhase(phase);
+    });
+
+    function interpolatePhase(phase) {
+      const sorted = Object.keys(keyframes).map(Number).sort((a, b) => a - b);
+      if (sorted.length === 0) return;
+      if (sorted.length === 1) { loadPose(keyframes[sorted[0]]); return; }
+
+      // Find surrounding keyframes
+      let lo = sorted[0], hi = sorted[sorted.length - 1];
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (phase >= sorted[i] && phase <= sorted[i + 1]) {
+          lo = sorted[i];
+          hi = sorted[i + 1];
+          break;
+        }
+      }
+
+      const t = hi === lo ? 0 : (phase - lo) / (hi - lo);
+      const poseA = keyframes[lo];
+      const poseB = keyframes[hi];
+
+      for (const name of Object.keys(boneValues)) {
+        const a = poseA?.[name] || { x: 0, y: 0, z: 0 };
+        const b = poseB?.[name] || { x: 0, y: 0, z: 0 };
+        boneValues[name].x = a.x + (b.x - a.x) * t;
+        boneValues[name].y = a.y + (b.y - a.y) * t;
+        boneValues[name].z = a.z + (b.z - a.z) * t;
+      }
+      applyAllBoneRotations();
+      updateSliders();
+    }
+
+    // ─── Playback ───
+    let playing = false;
+    let playPhase = 0;
+
+    window.togglePlay = function() {
+      playing = !playing;
+    };
+
+    window.resetPose = function() {
+      playing = false;
+      for (const name of Object.keys(boneValues)) {
+        boneValues[name] = { x: 0, y: 0, z: 0 };
+      }
+      applyAllBoneRotations();
+      updateSliders();
+    };
+
+    // ─── Export ───
+    function updateExport() {
+      const json = JSON.stringify(keyframes, (key, val) => {
+        if (typeof val === 'number') return Math.round(val * 1000) / 1000;
+        return val;
+      }, 2);
+      document.getElementById('export-json').value = json;
+    }
+
+    window.copyExport = function() {
+      const ta = document.getElementById('export-json');
+      navigator.clipboard.writeText(ta.value);
+    };
+
+    // ─── Load preset animation JSON ───
+    window.loadPreset = async function(name) {
+      const resp = await fetch(`/animations/${name}.json`);
+      const data = await resp.json();
+
+      // Clear existing keyframes
+      for (const k of Object.keys(keyframes)) delete keyframes[k];
+
+      // Load keyframes from JSON
+      for (const [phase, pose] of Object.entries(data.keyframes)) {
+        keyframes[Number(phase)] = {};
+        for (const [boneName, rot] of Object.entries(pose)) {
+          if (boneName.startsWith('_')) continue;
+          keyframes[Number(phase)][boneName] = { x: rot.x, y: rot.y, z: rot.z };
+        }
+      }
+
+      // Update UI
+      document.getElementById('preset-label').textContent =
+        `Loaded: ${data.name} (${data.loop ? 'loop' : 'one-shot'}, ${data.duration}s)`;
+      buildKeyframeButtons();
+
+      // Load first keyframe pose
+      const firstPhase = Object.keys(keyframes).map(Number).sort((a,b) => a-b)[0];
+      if (keyframes[firstPhase]) {
+        loadPose(keyframes[firstPhase]);
+      }
+      document.getElementById('phase-slider').value = firstPhase || 0;
+      updateExport();
+    };
+
+    // ─── Tabs ───
+    document.querySelectorAll('.tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'export') updateExport();
+      });
+    });
+
+    // ─── Render loop ───
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      controls.update();
+
+      if (playing) {
+        playPhase = (playPhase + dt * 100) % 100; // 1 cycle per second
+        document.getElementById('phase-slider').value = playPhase;
+        document.getElementById('phase-display').textContent = Math.round(playPhase) + '%';
+        interpolatePhase(playPhase);
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Resize
+    window.addEventListener('resize', () => {
+      const w = viewport.clientWidth;
+      const h = viewport.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    });
+  </script>
+</body>
+</html>

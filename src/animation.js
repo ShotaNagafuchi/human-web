@@ -1,5 +1,7 @@
 import { idle } from './behaviors/idle.js';
 import { wander } from './behaviors/wander.js';
+import { run } from './behaviors/run.js';
+import { sit } from './behaviors/sit.js';
 
 /**
  * Animation controller for a single character.
@@ -15,6 +17,8 @@ export class AnimationController {
 
     this.register(idle);
     this.register(wander);
+    this.register(run);
+    this.register(sit);
   }
 
   register(behavior) {

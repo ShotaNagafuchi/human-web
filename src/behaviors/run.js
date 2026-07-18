@@ -1,42 +1,38 @@
 import * as THREE from 'three';
 import { randRange } from '../utils.js';
 
-const WALK_SPEED = 55;
+const RUN_SPEED = 130; // faster than walk (55)
 const _euler = new THREE.Euler();
 const _quat = new THREE.Quaternion();
 
-// Load walk keyframes from walk.json (single source of truth)
-let WALK_KEYS = null;
-let WALK_PHASES = [];
+let RUN_KEYS = null;
+let RUN_PHASES = [];
 
-async function loadWalkData() {
-  if (WALK_KEYS) return;
+async function loadRunData() {
+  if (RUN_KEYS) return;
   try {
-    const resp = await fetch('/animations/walk.json');
+    const resp = await fetch('/animations/run.json');
     const data = await resp.json();
-    WALK_KEYS = {};
+    RUN_KEYS = {};
     for (const [phase, pose] of Object.entries(data.keyframes)) {
-      WALK_KEYS[Number(phase)] = {};
+      RUN_KEYS[Number(phase)] = {};
       for (const [bone, rot] of Object.entries(pose)) {
         if (bone.startsWith('_')) continue;
-        WALK_KEYS[Number(phase)][bone] = rot;
+        RUN_KEYS[Number(phase)][bone] = rot;
       }
     }
-    WALK_PHASES = Object.keys(WALK_KEYS).map(Number).sort((a, b) => a - b);
+    RUN_PHASES = Object.keys(RUN_KEYS).map(Number).sort((a, b) => a - b);
   } catch (e) {
-    // Fallback: minimal walk
-    console.warn('[human-web] Could not load walk.json, using fallback');
-    WALK_KEYS = { 0: {}, 100: {} };
-    WALK_PHASES = [0, 100];
+    RUN_KEYS = { 0: {}, 100: {} };
+    RUN_PHASES = [0, 100];
   }
 }
 
-// Preload on import
-const _loadPromise = loadWalkData();
+const _loadPromise = loadRunData();
 
-export const wander = {
-  name: 'wander',
-  weight: 6,
+export const run = {
+  name: 'run',
+  weight: 2, // less common than walk
 
   enter(parts, ctx) {
     const margin = 80;
@@ -46,7 +42,7 @@ export const wander = {
   },
 
   update(parts, ctx, time, dt) {
-    if (!WALK_KEYS) return false; // still loading
+    if (!RUN_KEYS) return false;
 
     const root = parts.root;
     const dx = ctx.targetX - root.position.x;
@@ -54,30 +50,31 @@ export const wander = {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < 5) {
-      return true; // done — next behavior will set its own pose
+      return true;
     }
 
     const dirX = dx / dist;
     const dirY = dy / dist;
 
-    // Slight tilt toward movement direction (max ±15°), always stay upright
-    const tilt = Math.atan2(dirX, 1) * 0.4; // subtle lean, clamped naturally
-    const maxTilt = 0.26; // ≈15°
+    // Slight tilt toward movement direction
+    const tilt = Math.atan2(dirX, 1) * 0.4;
+    const maxTilt = 0.26;
     const targetTilt = Math.max(-maxTilt, Math.min(maxTilt, tilt));
     root.rotation.z += (targetTilt - root.rotation.z) * Math.min(1, dt * 5);
 
-    const step = Math.min(WALK_SPEED * dt, dist);
+    // Move faster than walk
+    const step = Math.min(RUN_SPEED * dt, dist);
     root.position.x += dirX * step;
     root.position.y += dirY * step;
 
-    ctx.phase = (ctx.phase + dt * 150) % 100;
-    applyKeyframePose(parts, WALK_KEYS, WALK_PHASES, ctx.phase);
+    // Faster cycle than walk
+    ctx.phase = (ctx.phase + dt * 250) % 100;
+    applyKeyframePose(parts, RUN_KEYS, RUN_PHASES, ctx.phase);
 
     return false;
   },
 
   exit(parts) {
-    // Don't reset — next behavior handles its own pose
   },
 };
 
@@ -116,14 +113,6 @@ function applyKeyframePose(parts, keys, phases, phase) {
       bone.quaternion.copy(restQ).multiply(_quat);
     } else {
       bone.quaternion.copy(_quat);
-    }
-  }
-}
-
-function resetBones(parts) {
-  for (const [name, bone] of Object.entries(parts.bones)) {
-    if (parts.restPose[name]) {
-      bone.quaternion.copy(parts.restPose[name]);
     }
   }
 }

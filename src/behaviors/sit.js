@@ -4,52 +4,63 @@ import { randRange } from '../utils.js';
 const _euler = new THREE.Euler();
 const _quat = new THREE.Quaternion();
 
-// Load from idle.json (single source of truth with editor)
-let IDLE_KEYS = null;
-let IDLE_PHASES = [];
+let SIT_KEYS = null;
+let SIT_PHASES = [];
 
-async function loadIdleData() {
-  if (IDLE_KEYS) return;
+async function loadSitData() {
+  if (SIT_KEYS) return;
   try {
-    const resp = await fetch('/animations/idle.json');
+    const resp = await fetch('/animations/sit.json');
     const data = await resp.json();
-    IDLE_KEYS = {};
+    SIT_KEYS = {};
     for (const [phase, pose] of Object.entries(data.keyframes)) {
-      IDLE_KEYS[Number(phase)] = {};
+      SIT_KEYS[Number(phase)] = {};
       for (const [bone, rot] of Object.entries(pose)) {
         if (bone.startsWith('_')) continue;
-        IDLE_KEYS[Number(phase)][bone] = rot;
+        SIT_KEYS[Number(phase)][bone] = rot;
       }
     }
-    IDLE_PHASES = Object.keys(IDLE_KEYS).map(Number).sort((a, b) => a - b);
+    SIT_PHASES = Object.keys(SIT_KEYS).map(Number).sort((a, b) => a - b);
   } catch (e) {
-    IDLE_KEYS = { 0: {}, 100: {} };
-    IDLE_PHASES = [0, 100];
+    SIT_KEYS = { 0: {}, 100: {} };
+    SIT_PHASES = [0, 100];
   }
 }
 
-const _loadPromise = loadIdleData();
+const _loadPromise = loadSitData();
 
-export const idle = {
-  name: 'idle',
-  weight: 3,
+export const sit = {
+  name: 'sit',
+  weight: 1, // rare
 
   enter(parts, ctx) {
-    ctx.duration = randRange(3, 7);
+    ctx.duration = randRange(4, 8); // sit for a while
     ctx.elapsed = 0;
-    ctx.phase = 0;
+    ctx.sitPhase = 0; // 0→100 transition to seated
+    ctx.seated = false;
   },
 
   update(parts, ctx, time, dt) {
-    if (!IDLE_KEYS) return false;
+    if (!SIT_KEYS) return false;
     ctx.elapsed += dt;
-    ctx.phase = (ctx.phase + dt * 50) % 100;
-    applyKeyframePose(parts, IDLE_KEYS, IDLE_PHASES, ctx.phase);
-    return ctx.elapsed >= ctx.duration;
+
+    // Transition to seated pose over ~0.6s
+    if (!ctx.seated) {
+      ctx.sitPhase = Math.min(100, ctx.sitPhase + dt * 167); // 0.6s to reach 100
+      if (ctx.sitPhase >= 100) ctx.seated = true;
+    }
+
+    // When time's up, transition back to standing
+    if (ctx.elapsed >= ctx.duration && ctx.seated) {
+      ctx.sitPhase = Math.max(0, ctx.sitPhase - dt * 167);
+      if (ctx.sitPhase <= 0) return true; // done
+    }
+
+    applyKeyframePose(parts, SIT_KEYS, SIT_PHASES, ctx.sitPhase);
+    return false;
   },
 
   exit(parts) {
-    // Don't reset to T-pose — next behavior will set its own pose
   },
 };
 
