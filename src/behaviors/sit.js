@@ -10,7 +10,7 @@ let SIT_PHASES = [];
 async function loadSitData() {
   if (SIT_KEYS) return;
   try {
-    const resp = await fetch('/animations/sit.json');
+    const resp = await fetch('/animations/sit_idle.json');
     const data = await resp.json();
     SIT_KEYS = {};
     for (const [phase, pose] of Object.entries(data.keyframes)) {
@@ -31,40 +31,26 @@ const _loadPromise = loadSitData();
 
 export const sit = {
   name: 'sit',
-  weight: 1, // rare
+  weight: 1,
 
   enter(parts, ctx) {
-    ctx.duration = randRange(4, 8); // sit for a while
+    ctx.duration = randRange(5, 10);
     ctx.elapsed = 0;
-    ctx.sitPhase = 0; // 0→100 transition to seated
-    ctx.seated = false;
+    ctx.phase = 0;
   },
 
   update(parts, ctx, time, dt) {
     if (!SIT_KEYS) return false;
     ctx.elapsed += dt;
-
-    // Transition to seated pose over ~0.6s
-    if (!ctx.seated) {
-      ctx.sitPhase = Math.min(100, ctx.sitPhase + dt * 167); // 0.6s to reach 100
-      if (ctx.sitPhase >= 100) ctx.seated = true;
-    }
-
-    // When time's up, transition back to standing
-    if (ctx.elapsed >= ctx.duration && ctx.seated) {
-      ctx.sitPhase = Math.max(0, ctx.sitPhase - dt * 167);
-      if (ctx.sitPhase <= 0) return true; // done
-    }
-
-    applyKeyframePose(parts, SIT_KEYS, SIT_PHASES, ctx.sitPhase);
-    return false;
+    ctx.phase = (ctx.phase + dt * 40) % 100;
+    applyPose(parts, SIT_KEYS, SIT_PHASES, ctx.phase);
+    return ctx.elapsed >= ctx.duration;
   },
 
-  exit(parts) {
-  },
+  exit(parts) {},
 };
 
-function applyKeyframePose(parts, keys, phases, phase) {
+function applyPose(parts, keys, phases, phase) {
   let loIdx = 0;
   let hiIdx = 1;
   for (let i = 0; i < phases.length - 1; i++) {
@@ -77,21 +63,17 @@ function applyKeyframePose(parts, keys, phases, phase) {
   const lo = phases[loIdx];
   const hi = phases[hiIdx];
   const t = hi === lo ? 0 : (phase - lo) / (hi - lo);
-
   const poseA = keys[lo];
   const poseB = keys[hi];
 
   for (const boneName of Object.keys(poseA)) {
     const bone = parts.bones[boneName];
     if (!bone) continue;
-
     const a = poseA[boneName];
     const b = poseB[boneName] || a;
-
     const rx = a.x + (b.x - a.x) * t;
     const ry = a.y + (b.y - a.y) * t;
     const rz = a.z + (b.z - a.z) * t;
-
     const restQ = parts.restPose[boneName];
     _euler.set(rx, ry, rz, 'ZYX');
     _quat.setFromEuler(_euler);
