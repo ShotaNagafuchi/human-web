@@ -2,6 +2,7 @@ import { idle } from './behaviors/idle.js';
 import { wander } from './behaviors/wander.js';
 import { run } from './behaviors/run.js';
 import { sit } from './behaviors/sit.js';
+import { chameleon } from './behaviors/chameleon.js';
 
 /**
  * Animation controller for a single character.
@@ -19,6 +20,7 @@ export class AnimationController {
     this.register(wander);
     this.register(run);
     this.register(sit);
+    this.register(chameleon);
   }
 
   register(behavior) {

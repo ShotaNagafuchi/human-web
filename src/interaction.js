@@ -31,8 +31,10 @@ export class Interaction {
     const { character, distance } = this.crowd.findClosest(x, y);
     const hitRadius = Math.min(window.innerWidth, window.innerHeight) * 0.08;
     if (character && distance < hitRadius) {
-      if (character.controller.behaviors.has('squish')) {
-        character.controller.play('squish');
+      // If chameleon is hiding, reveal it
+      const ctrl = character.controller;
+      if (ctrl.currentBehavior && ctrl.currentBehavior.name === 'chameleon' && ctrl.currentBehavior.onClick) {
+        ctrl.currentBehavior.onClick(ctrl.ctx);
       }
     }
   }
