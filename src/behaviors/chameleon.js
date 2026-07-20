@@ -1,212 +1,273 @@
 import * as THREE from 'three';
 import { randRange } from '../utils.js';
 
-const _white = new THREE.Color(0xf5f5f0);
-const _bgColor = new THREE.Color();
-const _euler = new THREE.Euler();
-const _quat = new THREE.Quaternion();
-
-// Idle pose while camouflaged
-const CAMO_POSE = {
-  Hips: { x: 0, y: 0, z: 0 },
-  Spine: { x: 0.02, y: 0, z: 0 },
-  UpperArm_L: { x: -1.309, y: 0, z: 0 },
-  UpperArm_R: { x: -1.309, y: 0, z: 0 },
-};
-
 /**
- * Custom shader material that paints from white to a target color
- * using a noise-based threshold that spreads randomly across the mesh.
+ * ChameleonOverlay
+ * - Captures page with html2canvas
+ * - Projects the screenshot onto the character via onBeforeCompile
+ *   (keeps MeshStandardMaterial + skinning working)
+ * - On click: Splatoon-style ink stamp + reveal
  */
-function createChameleonMaterial(baseMat) {
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xf5f5f0,
-    roughness: baseMat.roughness,
-    metalness: baseMat.metalness,
-  });
+export class ChameleonOverlay {
+  constructor(parts, renderer) {
+    this.parts = parts;
+    this.renderer = renderer; // Three.js WebGLRenderer reference
+    this.active = false;
+    this.phase = 'inactive';
+    this.progress = 0;
+    this.holdTime = 0;
+    this.maxHoldTime = 0;
+    this.bgTexture = null;
+    this.modifiedMaterials = [];
+  }
 
-  // Add custom uniforms via onBeforeCompile
-  mat.userData.paintProgress = { value: 0.0 };
-  mat.userData.targetColor = { value: new THREE.Color(0xffffff) };
-  mat.userData.noiseOffset = { value: new THREE.Vector3(Math.random() * 100, Math.random() * 100, Math.random() * 100) };
+  async activate() {
+    if (this.active) return;
+    this.active = true;
+    this.phase = 'capturing';
+    this.progress = 0;
+    this.holdTime = 0;
+    this.maxHoldTime = randRange(10, 20);
 
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.paintProgress = mat.userData.paintProgress;
-    shader.uniforms.targetColor = mat.userData.targetColor;
-    shader.uniforms.noiseOffset = mat.userData.noiseOffset;
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
 
-    // Add varying for world position in vertex shader
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      `#include <common>
-      varying vec3 vWorldPos;`
-    );
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-      vWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
-    );
+      const capture = await html2canvas(document.body, {
+        ignoreElements: (el) => el.tagName === 'CANVAS',
+        logging: false,
+        useCORS: true,
+        scale: 1,
+        windowWidth: vpW,
+        windowHeight: vpH,
+        width: vpW,
+        height: vpH,
+        x: window.scrollX,
+        y: window.scrollY,
+      });
 
-    // Fragment: mix white→targetColor based on noise + progress
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      `#include <common>
-      varying vec3 vWorldPos;
-      uniform float paintProgress;
-      uniform vec3 targetColor;
-      uniform vec3 noiseOffset;
+      this.bgTexture = new THREE.CanvasTexture(capture);
+      this.bgTexture.flipY = false;
+      this.bgTexture.needsUpdate = true;
 
-      // Simple 3D hash noise
-      float hash(vec3 p) {
-        p = fract(p * vec3(443.897, 441.423, 437.195));
-        p += dot(p, p.yzx + 19.19);
-        return fract((p.x + p.y) * p.z);
-      }`
-    );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      'vec4 diffuseColor = vec4( diffuse, opacity );',
-      `// Noise-based paint spread
-      float n = hash(vWorldPos * 3.0 + noiseOffset);
-      // paintProgress 0→1 gradually covers more area
-      // threshold expands from random seed points
-      float threshold = smoothstep(0.0, 1.0, paintProgress * 1.4 - n * 0.8);
-      vec3 paintedColor = mix(diffuse, targetColor, threshold);
-      vec4 diffuseColor = vec4(paintedColor, opacity);`
-    );
+      // Drawing buffer = exact gl_FragCoord range
+      const bufferSize = new THREE.Vector2();
+      this.renderer.getDrawingBufferSize(bufferSize);
 
-    mat.userData.shader = shader;
-  };
+      this.camoMixUniform = { value: 0.0 };
+      this.originalMeshMats = new Map();
 
-  return mat;
-}
+      this.parts.root.traverse((child) => {
+        if (child.isMesh && child.material) {
+          this.originalMeshMats.set(child, child.material);
 
-export const chameleon = {
-  name: 'chameleon',
-  weight: 1,
+          const camoMat = child.material.clone();
+          camoMat.userData._camoMix = this.camoMixUniform;
+          camoMat.userData._bgMap = { value: this.bgTexture };
+          camoMat.userData._screenSize = { value: bufferSize };
 
-  enter(parts, ctx) {
-    ctx.phase = 'painting'; // painting → hidden → revealing → done
-    ctx.paintProgress = 0;
-    ctx.clicked = false;
-    ctx.revealProgress = 0;
+          camoMat.onBeforeCompile = (shader) => {
+            shader.uniforms.camoMix = camoMat.userData._camoMix;
+            shader.uniforms.bgMap = camoMat.userData._bgMap;
+            shader.uniforms.screenSize = camoMat.userData._screenSize;
 
-    // Sample background color
-    const screenX = parts.root.position.x;
-    const screenY = window.innerHeight - parts.root.position.y;
-    const bgColorStr = sampleBackgroundColor(screenX, screenY);
-    _bgColor.setStyle(bgColorStr);
+            shader.vertexShader = shader.vertexShader.replace(
+              'void main() {',
+              'varying float vLocalY;\nvoid main() {',
+            );
+            shader.vertexShader = shader.vertexShader.replace(
+              '#include <project_vertex>',
+              '#include <project_vertex>\nvLocalY = position.y;',
+            );
 
-    // Replace material with chameleon shader material
-    ctx.originalMat = parts.mat;
-    ctx.chameleonMat = createChameleonMaterial(parts.mat);
-    ctx.chameleonMat.userData.targetColor.value.copy(_bgColor);
+            shader.fragmentShader = shader.fragmentShader.replace(
+              'void main() {',
+              `uniform float camoMix;
+              uniform sampler2D bgMap;
+              uniform vec2 screenSize;
+              varying float vLocalY;
+              void main() {`,
+            );
+            shader.fragmentShader = shader.fragmentShader.replace(
+              'vec4 diffuseColor = vec4( diffuse, opacity );',
+              `// Capture = exact viewport, so direct UV mapping
+              vec2 screenUV = gl_FragCoord.xy / screenSize;
+              screenUV.y = 1.0 - screenUV.y;
+              vec3 bgColor = texture2D(bgMap, screenUV).rgb;
+              float normalizedY = clamp(vLocalY / 1.3, 0.0, 1.0);
+              float wipeEdge = (1.0 - camoMix) * 1.4 - 0.2;
+              float wipeMask = smoothstep(wipeEdge - 0.05, wipeEdge + 0.05, normalizedY);
+              vec3 camoColor = mix(diffuse, bgColor, wipeMask);
+              vec4 diffuseColor = vec4(camoColor, opacity);`,
+            );
+          };
 
-    // Apply to all meshes
-    parts.root.traverse((child) => {
-      if (child.isMesh && child.material === ctx.originalMat) {
-        child.material = ctx.chameleonMat;
-      }
-    });
-
-    applyStaticPose(parts, CAMO_POSE);
-  },
-
-  update(parts, ctx, time, dt) {
-    if (!ctx.chameleonMat) return false;
-
-    switch (ctx.phase) {
-      case 'painting':
-        // Random patches gradually appear (over ~2.5s)
-        ctx.paintProgress = Math.min(1, ctx.paintProgress + dt * 0.4);
-        ctx.chameleonMat.userData.paintProgress.value = ctx.paintProgress;
-        if (ctx.paintProgress >= 1) {
-          ctx.phase = 'hidden';
+          child.material = camoMat;
+          this.modifiedMaterials.push(camoMat);
         }
-        // Keep idle pose
-        applyStaticPose(parts, CAMO_POSE);
+      });
+
+      this.phase = 'painting';
+    } catch (e) {
+      this.active = false;
+      this.phase = 'inactive';
+    }
+  }
+
+  handleClick() {
+    if (this.phase === 'hidden') {
+      const screenX = this.parts.root.position.x;
+      const screenY = window.innerHeight - this.parts.root.position.y;
+      spawnInkStamp(screenX, screenY);
+      this.phase = 'revealing';
+      this.progress = 0;
+    }
+  }
+
+  update(dt) {
+    if (!this.active) return;
+
+    switch (this.phase) {
+      case 'capturing':
+        break;
+
+      case 'painting':
+        // Top-down wipe over ~1.2s
+        this.progress = Math.min(1, this.progress + dt * 0.85);
+        if (this.camoMixUniform) this.camoMixUniform.value = this.progress;
+        if (this.progress >= 1) this.phase = 'hidden';
         break;
 
       case 'hidden':
-        // Stay camouflaged, subtle breathing
-        applyStaticPose(parts, CAMO_POSE);
-        if (ctx.clicked) {
-          ctx.phase = 'revealing';
+        this.holdTime += dt;
+        if (this.holdTime >= this.maxHoldTime) {
+          this.phase = 'revealing';
+          this.progress = 0;
         }
         break;
 
       case 'revealing':
-        // Reverse: painted → white (over ~1s)
-        ctx.revealProgress = Math.min(1, ctx.revealProgress + dt * 1.0);
-        ctx.chameleonMat.userData.paintProgress.value = 1.0 - ctx.revealProgress;
-        if (ctx.revealProgress >= 1) {
-          // Restore original material
-          restoreMaterial(parts, ctx);
-          return true;
+        // Wipe back over ~1s
+        this.progress = Math.min(1, this.progress + dt * 1.0);
+        if (this.camoMixUniform) this.camoMixUniform.value = 1.0 - this.progress;
+        if (this.progress >= 1) {
+          this.restore();
         }
         break;
     }
+  }
 
-    return false;
-  },
-
-  exit(parts, ctx) {
-    restoreMaterial(parts, ctx);
-  },
-
-  onClick(ctx) {
-    if (ctx.phase === 'hidden') {
-      ctx.clicked = true;
-    }
-  },
-};
-
-function restoreMaterial(parts, ctx) {
-  if (ctx.originalMat) {
-    parts.root.traverse((child) => {
-      if (child.isMesh && child.material === ctx.chameleonMat) {
-        child.material = ctx.originalMat;
+  restore() {
+    // Swap back to original materials
+    if (this.originalMeshMats) {
+      for (const [mesh, origMat] of this.originalMeshMats) {
+        mesh.material = origMat;
       }
-    });
-    if (ctx.chameleonMat) {
-      ctx.chameleonMat.dispose();
-      ctx.chameleonMat = null;
+      this.originalMeshMats.clear();
     }
+    // Dispose cloned camo materials
+    for (const mat of this.modifiedMaterials) {
+      mat.dispose();
+    }
+    this.modifiedMaterials = [];
+
+    if (this.bgTexture) {
+      this.bgTexture.dispose();
+      this.bgTexture = null;
+    }
+
+    this.active = false;
+    this.phase = 'inactive';
   }
 }
 
-function sampleBackgroundColor(x, y) {
-  try {
-    const el = document.elementFromPoint(x, y);
-    if (!el) return '#ffffff';
+// ──────────────────────────────────────────
+// Splatoon-style ink stamp (single splat, not particles)
+// ──────────────────────────────────────────
 
-    let current = el;
-    while (current && current !== document.documentElement) {
-      const style = getComputedStyle(current);
-      const bg = style.backgroundColor;
-      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-        return bg;
-      }
-      current = current.parentElement;
-    }
+function spawnInkStamp(x, y) {
+  const canvas = document.createElement('canvas');
+  const size = 120 + Math.random() * 60;
+  const dpr = Math.min(devicePixelRatio, 2);
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.cssText = `
+    position: fixed;
+    left: ${x - size / 2}px;
+    top: ${y - size / 2}px;
+    width: ${size}px;
+    height: ${size}px;
+    pointer-events: none;
+    z-index: 2147483647;
+  `;
+  document.body.appendChild(canvas);
 
-    const bodyBg = getComputedStyle(document.body).backgroundColor;
-    return (bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)') ? bodyBg : '#ffffff';
-  } catch (e) {
-    return '#ffffff';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // Pick a vivid Splatoon-ish color
+  const colors = ['#E83573', '#5CD1E5', '#D1DC2A', '#F78F2E', '#7B42F5', '#1EDC62'];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+
+  // Main splat blob (big irregular shape)
+  ctx.fillStyle = color;
+  drawBlob(ctx, cx, cy, size * 0.3, 0.7, 9);
+
+  // Smaller satellite blobs
+  const satelliteCount = 4 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < satelliteCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = size * 0.2 + Math.random() * size * 0.2;
+    const bx = cx + Math.cos(angle) * dist;
+    const by = cy + Math.sin(angle) * dist;
+    const br = 3 + Math.random() * 10;
+    ctx.fillStyle = color;
+    drawBlob(ctx, bx, by, br, 0.5, 6 + Math.floor(Math.random() * 3));
   }
+
+  // Tiny specks
+  for (let i = 0; i < 8; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = size * 0.15 + Math.random() * size * 0.3;
+    const sx = cx + Math.cos(angle) * dist;
+    const sy = cy + Math.sin(angle) * dist;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1 + Math.random() * 3, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  // Animate: scale up from 0 quickly, hold, then fade out
+  canvas.style.transform = 'scale(0)';
+  canvas.style.transition = 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  requestAnimationFrame(() => {
+    canvas.style.transform = 'scale(1)';
+  });
+
+  // Fade out after 1.5s
+  setTimeout(() => {
+    canvas.style.transition = 'opacity 0.6s ease-out';
+    canvas.style.opacity = '0';
+    setTimeout(() => canvas.remove(), 600);
+  }, 1500);
 }
 
-function applyStaticPose(parts, pose) {
-  for (const [boneName, rot] of Object.entries(pose)) {
-    const bone = parts.bones[boneName];
-    if (!bone) continue;
-    const restQ = parts.restPose[boneName];
-    _euler.set(rot.x, rot.y, rot.z, 'ZYX');
-    _quat.setFromEuler(_euler);
-    if (restQ) {
-      bone.quaternion.copy(restQ).multiply(_quat);
-    } else {
-      bone.quaternion.copy(_quat);
-    }
+function drawBlob(ctx, x, y, radius, irregularity, numPoints) {
+  const points = [];
+  for (let i = 0; i < numPoints; i++) {
+    const angle = (i / numPoints) * Math.PI * 2;
+    const r = radius * (1 + (Math.random() - 0.5) * irregularity);
+    points.push({ x: x + Math.cos(angle) * r, y: y + Math.sin(angle) * r });
   }
+  ctx.beginPath();
+  ctx.moveTo((points[0].x + points[1].x) / 2, (points[0].y + points[1].y) / 2);
+  for (let i = 1; i < points.length; i++) {
+    const next = points[(i + 1) % points.length];
+    ctx.quadraticCurveTo(points[i].x, points[i].y, (points[i].x + next.x) / 2, (points[i].y + next.y) / 2);
+  }
+  ctx.closePath();
+  ctx.fill();
 }

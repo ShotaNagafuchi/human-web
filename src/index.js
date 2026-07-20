@@ -19,7 +19,7 @@ import { Interaction } from './interaction.js';
 
   async function boot() {
     const renderer = new Renderer();
-    const crowd = new Crowd(renderer.scene);
+    const crowd = new Crowd(renderer.scene, renderer.webglRenderer);
     const interaction = new Interaction(crowd);
 
     await crowd.init(config.count);

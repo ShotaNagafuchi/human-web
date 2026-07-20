@@ -6,8 +6,9 @@ import { randRange } from './utils.js';
  * Manages multiple Meccha Avatar characters across the viewport.
  */
 export class Crowd {
-  constructor(scene) {
+  constructor(scene, renderer) {
     this.scene = scene;
+    this.renderer = renderer; // WebGLRenderer for chameleon buffer size
     this.characters = [];
   }
 
@@ -36,7 +37,7 @@ export class Crowd {
     root.position.y = randRange(margin, window.innerHeight - margin);
     root.position.z = 0;
 
-    const controller = new AnimationController(parts);
+    const controller = new AnimationController(parts, this.renderer);
     controller.play(Math.random() > 0.5 ? 'idle' : 'wander');
 
     this.characters.push({ root, parts, controller });
