@@ -1,34 +1,9 @@
 import * as THREE from 'three';
 import { randRange } from '../utils.js';
+import { IDLE } from '../anim-data.js';
 
 const _euler = new THREE.Euler();
 const _quat = new THREE.Quaternion();
-
-// Load from idle.json (single source of truth with editor)
-let IDLE_KEYS = null;
-let IDLE_PHASES = [];
-
-async function loadIdleData() {
-  if (IDLE_KEYS) return;
-  try {
-    const resp = await fetch('/animations/idle.json');
-    const data = await resp.json();
-    IDLE_KEYS = {};
-    for (const [phase, pose] of Object.entries(data.keyframes)) {
-      IDLE_KEYS[Number(phase)] = {};
-      for (const [bone, rot] of Object.entries(pose)) {
-        if (bone.startsWith('_')) continue;
-        IDLE_KEYS[Number(phase)][bone] = rot;
-      }
-    }
-    IDLE_PHASES = Object.keys(IDLE_KEYS).map(Number).sort((a, b) => a - b);
-  } catch (e) {
-    IDLE_KEYS = { 0: {}, 100: {} };
-    IDLE_PHASES = [0, 100];
-  }
-}
-
-const _loadPromise = loadIdleData();
 
 export const idle = {
   name: 'idle',
@@ -41,53 +16,32 @@ export const idle = {
   },
 
   update(parts, ctx, time, dt) {
-    if (!IDLE_KEYS) return false;
     ctx.elapsed += dt;
     ctx.phase = (ctx.phase + dt * 50) % 100;
-    applyKeyframePose(parts, IDLE_KEYS, IDLE_PHASES, ctx.phase);
+    applyPose(parts, IDLE.keys, IDLE.phases, ctx.phase);
     return ctx.elapsed >= ctx.duration;
   },
 
-  exit(parts) {
-    // Don't reset to T-pose — next behavior will set its own pose
-  },
+  exit(parts) {},
 };
 
-function applyKeyframePose(parts, keys, phases, phase) {
-  let loIdx = 0;
-  let hiIdx = 1;
+function applyPose(parts, keys, phases, phase) {
+  let loIdx = 0, hiIdx = 1;
   for (let i = 0; i < phases.length - 1; i++) {
-    if (phase >= phases[i] && phase <= phases[i + 1]) {
-      loIdx = i;
-      hiIdx = i + 1;
-      break;
-    }
+    if (phase >= phases[i] && phase <= phases[i + 1]) { loIdx = i; hiIdx = i + 1; break; }
   }
-  const lo = phases[loIdx];
-  const hi = phases[hiIdx];
+  const lo = phases[loIdx], hi = phases[hiIdx];
   const t = hi === lo ? 0 : (phase - lo) / (hi - lo);
-
-  const poseA = keys[lo];
-  const poseB = keys[hi];
+  const poseA = keys[lo], poseB = keys[hi];
 
   for (const boneName of Object.keys(poseA)) {
     const bone = parts.bones[boneName];
     if (!bone) continue;
-
-    const a = poseA[boneName];
-    const b = poseB[boneName] || a;
-
-    const rx = a.x + (b.x - a.x) * t;
-    const ry = a.y + (b.y - a.y) * t;
-    const rz = a.z + (b.z - a.z) * t;
-
-    const restQ = parts.restPose[boneName];
-    _euler.set(rx, ry, rz, 'ZYX');
+    const a = poseA[boneName], b = poseB[boneName] || a;
+    _euler.set(a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t, a.z+(b.z-a.z)*t, 'ZYX');
     _quat.setFromEuler(_euler);
-    if (restQ) {
-      bone.quaternion.copy(restQ).multiply(_quat);
-    } else {
-      bone.quaternion.copy(_quat);
-    }
+    const restQ = parts.restPose[boneName];
+    if (restQ) bone.quaternion.copy(restQ).multiply(_quat);
+    else bone.quaternion.copy(_quat);
   }
 }

@@ -1,38 +1,10 @@
 import * as THREE from 'three';
 import { randRange } from '../utils.js';
+import { WALK } from '../anim-data.js';
 
 const WALK_SPEED = 55;
 const _euler = new THREE.Euler();
 const _quat = new THREE.Quaternion();
-
-// Load walk keyframes from walk.json (single source of truth)
-let WALK_KEYS = null;
-let WALK_PHASES = [];
-
-async function loadWalkData() {
-  if (WALK_KEYS) return;
-  try {
-    const resp = await fetch('/animations/walk.json');
-    const data = await resp.json();
-    WALK_KEYS = {};
-    for (const [phase, pose] of Object.entries(data.keyframes)) {
-      WALK_KEYS[Number(phase)] = {};
-      for (const [bone, rot] of Object.entries(pose)) {
-        if (bone.startsWith('_')) continue;
-        WALK_KEYS[Number(phase)][bone] = rot;
-      }
-    }
-    WALK_PHASES = Object.keys(WALK_KEYS).map(Number).sort((a, b) => a - b);
-  } catch (e) {
-    // Fallback: minimal walk
-    console.warn('[human-web] Could not load walk.json, using fallback');
-    WALK_KEYS = { 0: {}, 100: {} };
-    WALK_PHASES = [0, 100];
-  }
-}
-
-// Preload on import
-const _loadPromise = loadWalkData();
 
 export const wander = {
   name: 'wander',
@@ -46,23 +18,18 @@ export const wander = {
   },
 
   update(parts, ctx, time, dt) {
-    if (!WALK_KEYS) return false; // still loading
-
     const root = parts.root;
     const dx = ctx.targetX - root.position.x;
     const dy = ctx.targetY - root.position.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < 5) {
-      return true; // done — next behavior will set its own pose
-    }
+    if (dist < 5) return true;
 
     const dirX = dx / dist;
     const dirY = dy / dist;
 
-    // Slight tilt toward movement direction (max ±15°), always stay upright
-    const tilt = Math.atan2(dirX, 1) * 0.4; // subtle lean, clamped naturally
-    const maxTilt = 0.26; // ≈15°
+    const tilt = Math.atan2(dirX, 1) * 0.4;
+    const maxTilt = 0.26;
     const targetTilt = Math.max(-maxTilt, Math.min(maxTilt, tilt));
     root.rotation.z += (targetTilt - root.rotation.z) * Math.min(1, dt * 5);
 
@@ -71,59 +38,30 @@ export const wander = {
     root.position.y += dirY * step;
 
     ctx.phase = (ctx.phase + dt * 150) % 100;
-    applyKeyframePose(parts, WALK_KEYS, WALK_PHASES, ctx.phase);
-
+    applyPose(parts, WALK.keys, WALK.phases, ctx.phase);
     return false;
   },
 
-  exit(parts) {
-    // Don't reset — next behavior handles its own pose
-  },
+  exit(parts) {},
 };
 
-function applyKeyframePose(parts, keys, phases, phase) {
-  let loIdx = 0;
-  let hiIdx = 1;
+function applyPose(parts, keys, phases, phase) {
+  let loIdx = 0, hiIdx = 1;
   for (let i = 0; i < phases.length - 1; i++) {
-    if (phase >= phases[i] && phase <= phases[i + 1]) {
-      loIdx = i;
-      hiIdx = i + 1;
-      break;
-    }
+    if (phase >= phases[i] && phase <= phases[i + 1]) { loIdx = i; hiIdx = i + 1; break; }
   }
-  const lo = phases[loIdx];
-  const hi = phases[hiIdx];
+  const lo = phases[loIdx], hi = phases[hiIdx];
   const t = hi === lo ? 0 : (phase - lo) / (hi - lo);
-
-  const poseA = keys[lo];
-  const poseB = keys[hi];
+  const poseA = keys[lo], poseB = keys[hi];
 
   for (const boneName of Object.keys(poseA)) {
     const bone = parts.bones[boneName];
     if (!bone) continue;
-
-    const a = poseA[boneName];
-    const b = poseB[boneName] || a;
-
-    const rx = a.x + (b.x - a.x) * t;
-    const ry = a.y + (b.y - a.y) * t;
-    const rz = a.z + (b.z - a.z) * t;
-
-    const restQ = parts.restPose[boneName];
-    _euler.set(rx, ry, rz, 'ZYX');
+    const a = poseA[boneName], b = poseB[boneName] || a;
+    _euler.set(a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t, a.z+(b.z-a.z)*t, 'ZYX');
     _quat.setFromEuler(_euler);
-    if (restQ) {
-      bone.quaternion.copy(restQ).multiply(_quat);
-    } else {
-      bone.quaternion.copy(_quat);
-    }
-  }
-}
-
-function resetBones(parts) {
-  for (const [name, bone] of Object.entries(parts.bones)) {
-    if (parts.restPose[name]) {
-      bone.quaternion.copy(parts.restPose[name]);
-    }
+    const restQ = parts.restPose[boneName];
+    if (restQ) bone.quaternion.copy(restQ).multiply(_quat);
+    else bone.quaternion.copy(_quat);
   }
 }
