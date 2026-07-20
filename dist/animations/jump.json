@@ -1,0 +1,273 @@
+{
+  "name": "jump",
+  "loop": false,
+  "duration": 0.8,
+  "_comment": "Jump is mostly root.position.y movement. Bones just crouch/extend.",
+  "keyframes": {
+    "0": {
+      "_comment": "Crouch anticipation",
+      "Hips": {
+        "x": 0,
+        "y": -0.05,
+        "z": 0
+      },
+      "Spine": {
+        "x": 0.1,
+        "y": 0,
+        "z": 0
+      },
+      "Shoulder_L": {
+        "x": 0,
+        "y": -0.2,
+        "z": 0
+      },
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0.2,
+        "z": 0
+      },
+      "UpperLeg_R": {
+        "x": -0.5,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_R": {
+        "x": 0.7,
+        "y": 0,
+        "z": 0
+      },
+      "UpperLeg_L": {
+        "x": -0.5,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_L": {
+        "x": 0.7,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_L": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      }
+    },
+    "30": {
+      "_comment": "Launch \u2014 extending",
+      "Hips": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "Spine": {
+        "x": -0.05,
+        "y": 0,
+        "z": 0
+      },
+      "Shoulder_L": {
+        "x": 0,
+        "y": 0.3,
+        "z": 0
+      },
+      "Shoulder_R": {
+        "x": 0,
+        "y": -0.3,
+        "z": 0
+      },
+      "UpperLeg_R": {
+        "x": 0.1,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_R": {
+        "x": 0.05,
+        "y": 0,
+        "z": 0
+      },
+      "UpperLeg_L": {
+        "x": 0.1,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_L": {
+        "x": 0.05,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_L": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      }
+    },
+    "55": {
+      "_comment": "Airborne peak \u2014 legs slightly tucked",
+      "Hips": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "Spine": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "Shoulder_L": {
+        "x": 0,
+        "y": 0.15,
+        "z": 0
+      },
+      "Shoulder_R": {
+        "x": 0,
+        "y": -0.15,
+        "z": 0
+      },
+      "UpperLeg_R": {
+        "x": -0.2,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_R": {
+        "x": 0.3,
+        "y": 0,
+        "z": 0
+      },
+      "UpperLeg_L": {
+        "x": -0.2,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_L": {
+        "x": 0.3,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_L": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      }
+    },
+    "80": {
+      "_comment": "Landing crouch",
+      "Hips": {
+        "x": 0,
+        "y": -0.03,
+        "z": 0
+      },
+      "Spine": {
+        "x": 0.08,
+        "y": 0,
+        "z": 0
+      },
+      "Shoulder_L": {
+        "x": 0,
+        "y": -0.1,
+        "z": 0
+      },
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0.1,
+        "z": 0
+      },
+      "UpperLeg_R": {
+        "x": -0.4,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_R": {
+        "x": 0.5,
+        "y": 0,
+        "z": 0
+      },
+      "UpperLeg_L": {
+        "x": -0.4,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_L": {
+        "x": 0.5,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_L": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      }
+    },
+    "100": {
+      "_comment": "Recovery to standing",
+      "Hips": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "Spine": {
+        "x": 0.02,
+        "y": 0,
+        "z": 0
+      },
+      "Shoulder_L": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "Shoulder_R": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "UpperLeg_R": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_R": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "UpperLeg_L": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "LowerLeg_L": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_L": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      },
+      "UpperArm_R": {
+        "x": -1.309,
+        "y": 0,
+        "z": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "idle",
+  "loop": true,
+  "duration": 2.0,
+  "keyframes": {
+    "0": {
+      "Hips": { "x": 0, "y": 0, "z": 0 },
+      "Spine": { "x": 0.02, "y": 0, "z": 0 },
+      "Chest": { "x": 0, "y": 0, "z": 0 },
+      "UpperArm_L": { "x": -1.309, "y": 0, "z": 0 },
+      "UpperArm_R": { "x": -1.309, "y": 0, "z": 0 },
+      "UpperLeg_L": { "x": 0, "y": 0, "z": 0 },
+      "UpperLeg_R": { "x": 0, "y": 0, "z": 0 },
+      "LowerLeg_L": { "x": 0, "y": 0, "z": 0 },
+      "LowerLeg_R": { "x": 0, "y": 0, "z": 0 }
+    },
+    "50": {
+      "Hips": { "x": 0, "y": 0.003, "z": 0 },
+      "Spine": { "x": 0.01, "y": 0, "z": 0.005 },
+      "Chest": { "x": -0.02, "y": 0, "z": 0 },
+      "Neck": { "x": 0.01, "y": 0.02, "z": 0 },
+      "Head": { "x": 0, "y": 0.015, "z": 0 },
+      "UpperArm_L": { "x": -1.309, "y": 0, "z": 0 },
+      "UpperArm_R": { "x": -1.309, "y": 0, "z": 0 },
+      "UpperLeg_L": { "x": 0, "y": 0, "z": 0 },
+      "UpperLeg_R": { "x": 0, "y": 0, "z": 0 },
+      "LowerLeg_L": { "x": 0, "y": 0, "z": 0 },
+      "LowerLeg_R": { "x": 0, "y": 0, "z": 0 }
+    },
+    "100": {
+      "Hips": { "x": 0, "y": 0, "z": 0 },
+      "Spine": { "x": 0.02, "y": 0, "z": 0 },
+      "Chest": { "x": 0, "y": 0, "z": 0 },
+      "UpperArm_L": { "x": -1.309, "y": 0, "z": 0 },
+      "UpperArm_R": { "x": -1.309, "y": 0, "z": 0 },
+      "UpperLeg_L": { "x": 0, "y": 0, "z": 0 },
+      "UpperLeg_R": { "x": 0, "y": 0, "z": 0 },
+      "LowerLeg_L": { "x": 0, "y": 0, "z": 0 },
+      "LowerLeg_R": { "x": 0, "y": 0, "z": 0 }
+    }
+  }
+}
